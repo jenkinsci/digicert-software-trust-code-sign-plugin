@@ -1,22 +1,30 @@
+//The MIT License
+//
+//Copyright 2023
+//
+//Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+//
+//The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+//
+//THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 package io.jenkins.plugins.digicert;
 
 import hudson.EnvVars;
+import hudson.model.TaskListener;
 import hudson.slaves.EnvironmentVariablesNodeProperty;
 import hudson.slaves.NodeProperty;
 import hudson.slaves.NodePropertyDescriptor;
 import hudson.util.DescribableList;
 import jenkins.model.Jenkins;
-import java.io.IOException;
-import java.util.*;
+
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import hudson.model.TaskListener;
 
 public class Windows {
     private final TaskListener listener;
@@ -28,8 +36,8 @@ public class Windows {
     private final String prompt = "cmd.exe";
     private final char c = '/';
     String dir = System.getProperty("user.dir");
-    private Integer result;
     ProcessBuilder processBuilder = new ProcessBuilder();
+    private Integer result;
 
     public Windows(TaskListener listener, String SM_HOST, String SM_API_KEY, String SM_CLIENT_CERT_FILE, String SM_CLIENT_CERT_PASSWORD, String pathVar) {
         this.listener = listener;
@@ -42,13 +50,13 @@ public class Windows {
 
     public Integer install(String os) {
         this.listener.getLogger().println("\nAgent type: " + os);
-        this.listener.getLogger().println("\nInstalling SMCTL from: https://"+SM_HOST.substring(19).replaceAll("/$","")+"/signingmanager/api-ui/v1/releases/noauth/smtools-windows-x64.msi/download \n");
-        executeCommand("curl -X GET  https://"+SM_HOST.substring(19).replaceAll("/$", "")+"/signingmanager/api-ui/v1/releases/noauth/smtools-windows-x64.msi/download -o smtools-windows-x64.msi");
+        this.listener.getLogger().println("\nInstalling SMCTL from: https://" + SM_HOST.substring(19).replaceAll("/$", "") + "/signingmanager/api-ui/v1/releases/noauth/smtools-windows-x64.msi/download \n");
+        executeCommand("curl -X GET  https://" + SM_HOST.substring(19).replaceAll("/$", "") + "/signingmanager/api-ui/v1/releases/noauth/smtools-windows-x64.msi/download -o smtools-windows-x64.msi");
         result = executeCommand("msiexec /i smtools-windows-x64.msi /quiet /qn");
 //        this.listener.getLogger().println("Verifying Installation\n");
 //        executeCommand("smksp_registrar.exe list > NUL");
 //        executeCommand("smctl.exe keypair ls > NUL");
-        if (SM_HOST!=null && SM_API_KEY!=null && SM_CLIENT_CERT_FILE!=null && SM_CLIENT_CERT_PASSWORD!=null) {
+        if (SM_HOST != null && SM_API_KEY != null && SM_CLIENT_CERT_FILE != null && SM_CLIENT_CERT_PASSWORD != null) {
             executeCommand("C:\\Windows\\System32\\certutil.exe -csp \"DigiCert Signing Manager KSP\" -key -user > NUL 2> NUL");
             executeCommand("smksp_cert_sync.exe > NUL 2> NUL");
             executeCommand("smctl windows certsync > NUL 2> NUL");
@@ -132,8 +140,7 @@ public class Windows {
             }
             envVars.put(key, value);
             instance.save();
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             e.printStackTrace(this.listener.error(e.getMessage()));
         }
     }
@@ -143,14 +150,14 @@ public class Windows {
         try {
             processBuilder.command(prompt, c + "c", command);
             Map<String, String> env = processBuilder.environment();
-            if(SM_API_KEY!=null)
-            env.put("SM_API_KEY", SM_API_KEY);
-            if(SM_CLIENT_CERT_PASSWORD!=null)
-            env.put("SM_CLIENT_CERT_PASSWORD", SM_CLIENT_CERT_PASSWORD);
-            if(SM_CLIENT_CERT_FILE!=null)
-            env.put("SM_CLIENT_CERT_FILE", SM_CLIENT_CERT_FILE);
-            if(SM_HOST!=null)
-            env.put("SM_HOST", SM_HOST);
+            if (SM_API_KEY != null)
+                env.put("SM_API_KEY", SM_API_KEY);
+            if (SM_CLIENT_CERT_PASSWORD != null)
+                env.put("SM_CLIENT_CERT_PASSWORD", SM_CLIENT_CERT_PASSWORD);
+            if (SM_CLIENT_CERT_FILE != null)
+                env.put("SM_CLIENT_CERT_FILE", SM_CLIENT_CERT_FILE);
+            if (SM_HOST != null)
+                env.put("SM_HOST", SM_HOST);
             env.put("path", System.getenv("path") + ";C:\\Program Files\\DigiCert\\DigiCert One Signing Manager Tools;");
             processBuilder.directory(new File(dir));
             processBuilder.redirectErrorStream(true);
@@ -209,20 +216,20 @@ public class Windows {
                 e.printStackTrace(this.listener.error(e.getMessage()));
                 return 1;
             }
-            result = executeCommand("curl -X GET "+nugetUrl+" -o nuget.exe > NUL");
+            result = executeCommand("curl -X GET " + nugetUrl + " -o nuget.exe > NUL");
 
-            if (result==0)
+            if (result == 0)
                 this.listener.getLogger().println("\nNuget successfully installed\n");
-            else{
+            else {
                 this.listener.getLogger().println("\nNuget failed to install\n");
                 return 1;
             }
-            executeCommand("curl -X GET "+signtoolUrl+" -o winsdksetup.exe > NUL");
+            executeCommand("curl -X GET " + signtoolUrl + " -o winsdksetup.exe > NUL");
             result = executeCommand("winsdksetup.exe /norestart /quiet");
 
-            if (result==0)
+            if (result == 0)
                 this.listener.getLogger().println("\nSigntool successfully installed\n");
-            else{
+            else {
                 this.listener.getLogger().println("\nSigntool failed to install\n");
                 return 1;
             }
@@ -245,11 +252,11 @@ public class Windows {
                     signtoolPaths[0] = s.substring(0, s.length() - 13);
                 if ((s.substring(30)).contains("x86"))
                     signtoolPaths[1] = s.substring(0, s.length() - 13);
-                }
+            }
             //this.listener.getLogger().println("\n"+signtoolPaths[0]+"\n");
             //this.listener.getLogger().println("\n"+signtoolPaths[1]+"\n");
-            setEnvVar("PATH",this.pathVar+";"+dir+";" + signtoolPaths[0] + ";" + signtoolPaths[1]
-                    +";C:\\Program Files\\DigiCert\\DigiCert One Signing Manager Tools;");
+            setEnvVar("PATH", this.pathVar + ";" + dir + ";" + signtoolPaths[0] + ";" + signtoolPaths[1]
+                    + ";C:\\Program Files\\DigiCert\\DigiCert One Signing Manager Tools;");
             this.listener.getLogger().println("\nJarsigner successfully installed\n");
             this.listener.getLogger().println("\nSigning tools installation and configuration complete\n");
 
@@ -266,7 +273,7 @@ public class Windows {
 
         result = install(os);
 
-        if (result==0)
+        if (result == 0)
             this.listener.getLogger().println("\nSMCTL Istallation Complete\n");
         else {
             this.listener.getLogger().println("\nSMCTL Istallation Failed\n");
@@ -283,8 +290,8 @@ public class Windows {
 
         result = createFile(configPath, str);
 
-        if (result==0)
-            this.listener.getLogger().println("\nPKCS11 config file successfully created at location: "+configPath+"\n");
+        if (result == 0)
+            this.listener.getLogger().println("\nPKCS11 config file successfully created at location: " + configPath + "\n");
         else {
             this.listener.getLogger().println("\nFailed to create PKCS11 config file\n");
             return result;

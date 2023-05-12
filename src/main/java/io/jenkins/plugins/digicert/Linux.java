@@ -1,19 +1,29 @@
+//The MIT License
+//
+//Copyright 2023
+//
+//Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+//
+//The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+//
+//THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 package io.jenkins.plugins.digicert;
 
 import hudson.EnvVars;
+import hudson.model.TaskListener;
 import hudson.slaves.EnvironmentVariablesNodeProperty;
 import hudson.slaves.NodeProperty;
 import hudson.slaves.NodePropertyDescriptor;
 import hudson.util.DescribableList;
 import jenkins.model.Jenkins;
-import java.io.IOException;
-import java.util.*;
+
 import java.io.*;
 import java.util.List;
+import java.util.Map;
+import java.util.Properties;
 
-import hudson.model.TaskListener;
-
-public class Linux  {
+public class Linux {
     private final TaskListener listener;
     private final String SM_HOST;
     private final String SM_API_KEY;
@@ -23,10 +33,10 @@ public class Linux  {
     private final String prompt = "bash";
     private final char c = '-';
     String dir = System.getProperty("user.dir");
-    private Integer result;
     ProcessBuilder processBuilder = new ProcessBuilder();
+    private Integer result;
 
-    public Linux(TaskListener listener,  String SM_HOST, String SM_API_KEY, String SM_CLIENT_CERT_FILE, String SM_CLIENT_CERT_PASSWORD, String pathVar) {
+    public Linux(TaskListener listener, String SM_HOST, String SM_API_KEY, String SM_CLIENT_CERT_FILE, String SM_CLIENT_CERT_PASSWORD, String pathVar) {
         this.listener = listener;
         this.SM_HOST = SM_HOST;
         this.SM_API_KEY = SM_API_KEY;
@@ -36,11 +46,11 @@ public class Linux  {
     }
 
     public Integer install(String os) {
-        this.listener.getLogger().println("\nAgent type: "+os);
-        this.listener.getLogger().println("\nIstalling SMCTL from: https://"+SM_HOST.substring(19).replaceAll("/$","")+"/signingmanager/api-ui/v1/releases/noauth/smtools-linux-x64.tar.gz/download \n");
-        executeCommand("curl -X GET https://"+SM_HOST.substring(19).replaceAll("/$","")+"/signingmanager/api-ui/v1/releases/noauth/smtools-linux-x64.tar.gz/download/ -o smtools-linux-x64.tar.gz");
+        this.listener.getLogger().println("\nAgent type: " + os);
+        this.listener.getLogger().println("\nIstalling SMCTL from: https://" + SM_HOST.substring(19).replaceAll("/$", "") + "/signingmanager/api-ui/v1/releases/noauth/smtools-linux-x64.tar.gz/download \n");
+        executeCommand("curl -X GET https://" + SM_HOST.substring(19).replaceAll("/$", "") + "/signingmanager/api-ui/v1/releases/noauth/smtools-linux-x64.tar.gz/download/ -o smtools-linux-x64.tar.gz");
         result = executeCommand("tar xvf smtools-linux-x64.tar.gz > /dev/null");
-        dir = dir+File.separator+"smtools-linux-x64";
+        dir = dir + File.separator + "smtools-linux-x64";
         return result;
 //        this.listener.getLogger().println("Verifying Installation\n");
 //        executeCommand("./smctl keypair ls > /dev/null");
@@ -90,8 +100,7 @@ public class Linux  {
             }
             envVars.put(key, value);
             instance.save();
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             e.printStackTrace(this.listener.error(e.getMessage()));
         }
     }
@@ -119,22 +128,22 @@ public class Linux  {
         }
         try {
             this.listener.getLogger().println("\nInstalling and configuring signing tools - Jarsigner and Jsign\n");
-            result = executeCommand("curl -fSslL "+jsignUrl+" -o jsign.deb && sudo dpkg --install jsign.deb > /dev/null");
-            if (result==0)
+            result = executeCommand("curl -fSslL " + jsignUrl + " -o jsign.deb && sudo dpkg --install jsign.deb > /dev/null");
+            if (result == 0)
                 this.listener.getLogger().println("\nJsign successfully installed\n");
-            else{
+            else {
                 this.listener.getLogger().println("\nJsign failed to install\n");
                 return 1;
             }
             this.listener.getLogger().println("\nJarsigner successfully installed\n");
-            result = executeCommand("sudo chmod -R +x "+dir);
-            if (result==0)
+            result = executeCommand("sudo chmod -R +x " + dir);
+            if (result == 0)
                 this.listener.getLogger().println("\nSigning tools installation and configuration complete\n");
-            else{
+            else {
                 this.listener.getLogger().println("\nFailed to configure signing tools\n");
                 return 1;
             }
-            setEnvVar("PATH",this.pathVar+":/"+dir);
+            setEnvVar("PATH", this.pathVar + ":/" + dir);
             return 0;
 //            executeCommand("./smctl sign -k " + key + " -f " + fingerprint + " --config-file "+dir+"/pkcs11properties.cfg -v -i " + file);
         } catch (Exception e) {
@@ -146,17 +155,17 @@ public class Linux  {
     public Integer executeCommand(String command) {
 
         try {
-            processBuilder.command(prompt,c+"c",command);
+            processBuilder.command(prompt, c + "c", command);
             Map<String, String> env = processBuilder.environment();
-             if(SM_API_KEY!=null)
-                 env.put("SM_API_KEY", SM_API_KEY);
-             if(SM_CLIENT_CERT_PASSWORD!=null)
-                 env.put("SM_CLIENT_CERT_PASSWORD", SM_CLIENT_CERT_PASSWORD);
-             if(SM_CLIENT_CERT_FILE!=null)
-                 env.put("SM_CLIENT_CERT_FILE", SM_CLIENT_CERT_FILE);
-             if(SM_HOST!=null)
-                 env.put("SM_HOST", SM_HOST);
-             env.put("PATH",System.getenv("PATH")+":/"+dir+"/smtools-linux-x64/");
+            if (SM_API_KEY != null)
+                env.put("SM_API_KEY", SM_API_KEY);
+            if (SM_CLIENT_CERT_PASSWORD != null)
+                env.put("SM_CLIENT_CERT_PASSWORD", SM_CLIENT_CERT_PASSWORD);
+            if (SM_CLIENT_CERT_FILE != null)
+                env.put("SM_CLIENT_CERT_FILE", SM_CLIENT_CERT_FILE);
+            if (SM_HOST != null)
+                env.put("SM_HOST", SM_HOST);
+            env.put("PATH", System.getenv("PATH") + ":/" + dir + "/smtools-linux-x64/");
             processBuilder.directory(new File(dir));
             processBuilder.redirectErrorStream(true);
             Process process = processBuilder.start();
@@ -182,8 +191,7 @@ public class Linux  {
         } catch (InterruptedException e) {
             e.printStackTrace(this.listener.error(e.getMessage()));
             return 1;
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             e.printStackTrace(this.listener.error(e.getMessage()));
             return 1;
         }
@@ -192,7 +200,7 @@ public class Linux  {
     public Integer call(String os) throws IOException {
 
         result = install(os);
-        if (result==0)
+        if (result == 0)
             this.listener.getLogger().println("\nSMCTL Istallation Complete\n");
         else {
             this.listener.getLogger().println("\nSMCTL Istallation Failed\n");
@@ -201,14 +209,14 @@ public class Linux  {
 
         this.listener.getLogger().println("\nCreating PKCS11 Config File\n");
         String str = "name=signingmanager\n" +
-                "library="+dir+"/smpkcs11.so\n" +
+                "library=" + dir + "/smpkcs11.so\n" +
                 "slotListIndex=0\n";
-        String configPath = dir+File.separator+"pkcs11properties.cfg";
+        String configPath = dir + File.separator + "pkcs11properties.cfg";
 
         result = createFile(configPath, str);
 
-        if (result==0)
-            this.listener.getLogger().println("\nPKCS11 config file successfully created at location: "+configPath+"\n");
+        if (result == 0)
+            this.listener.getLogger().println("\nPKCS11 config file successfully created at location: " + configPath + "\n");
         else {
             this.listener.getLogger().println("\nFailed to create PKCS11 config file\n");
             return result;
