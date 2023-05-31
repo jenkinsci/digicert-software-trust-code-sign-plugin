@@ -27,8 +27,10 @@ public class AgentInfo extends MasterToSlaveCallable<Boolean, Throwable> {
     private final TaskListener listener;
     private final EnvVars env;
     private String SM_HOST;
+    // lgtm[jenkins/plaintext-storage]
     private String SM_API_KEY;
     private String SM_CLIENT_CERT_FILE;
+    // lgtm[jenkins/plaintext-storage]
     private String SM_CLIENT_CERT_PASSWORD;
     private String path;
     private Integer result;
