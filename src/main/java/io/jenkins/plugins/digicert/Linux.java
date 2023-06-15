@@ -17,8 +17,13 @@ import hudson.slaves.NodeProperty;
 import hudson.slaves.NodePropertyDescriptor;
 import hudson.util.DescribableList;
 import jenkins.model.Jenkins;
-
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.FileOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -54,25 +59,25 @@ public class Linux {
         result = executeCommand("tar xvf smtools-linux-x64.tar.gz > /dev/null");
         dir = dir + File.separator + "smtools-linux-x64";
         return result;
-//        this.listener.getLogger().println("Verifying Installation\n");
-//        executeCommand("./smctl keypair ls > /dev/null");
-//        this.listener.getLogger().println("Installation Verification Complete\n");
     }
 
     public Integer createFile(String path, String str) {
 
         File file = new File(path); //initialize File object and passing path as argument
-        boolean result;
+        FileOutputStream fos = null;
         try {
-            result = file.createNewFile();  //creates a new file
+            if(!file.createNewFile())  //creates a new file
+                ;
             try {
                 String name = file.getCanonicalPath();
-                FileOutputStream fos = new FileOutputStream(name, false);  // true for append mode
-                byte[] b = str.getBytes();       //converts string into bytes
+                fos = new FileOutputStream(name, false);  // true for append mode
+                byte[] b = str.getBytes(StandardCharsets.UTF_8);       //converts string into bytes
                 fos.write(b);           //writes bytes into file
                 fos.close();            //close the file
                 return 0;
-            } catch (Exception e) {
+            } catch (IOException e) {
+                if (fos!=null)
+                    fos.close();
                 e.printStackTrace(this.listener.error(e.getMessage()));
                 return 1;
             }
@@ -84,7 +89,7 @@ public class Linux {
 
     public void setEnvVar(String key, String value) {
         try {
-            Jenkins instance = Jenkins.getInstance();
+            Jenkins instance = Jenkins.get();
 
             DescribableList<NodeProperty<?>, NodePropertyDescriptor> globalNodeProperties = instance.getGlobalNodeProperties();
             List<EnvironmentVariablesNodeProperty> envVarsNodePropertyList = globalNodeProperties.getAll(EnvironmentVariablesNodeProperty.class);
@@ -109,22 +114,27 @@ public class Linux {
 
     public Integer signing() {
         String jsignUrl;
-        try (InputStream input = Linux.class.getResourceAsStream("config.properties")) {
-
+        InputStream input = null;
+        try {
+            input = Linux.class.getResourceAsStream("config.properties");
             Properties prop = new Properties();
-
-            if (input == null) {
-                this.listener.getLogger().println("Unable to find config.properties");
-                return 1;
-            }
 
             //load a properties file from class path, inside static method
             prop.load(input);
 
             //get the property value and print it out
             jsignUrl = prop.getProperty("jsignUrl");
+            input.close();
             //this.listener.getLogger().println(prop.getProperty("jsignUrl"));
-        } catch (IOException e) {
+        } catch (Exception e) {
+            try {
+                if(input != null)
+                    input.close();
+            }
+            catch(IOException ex) {
+                ex.printStackTrace(this.listener.error(ex.getMessage()));
+                return 1;
+            }
             e.printStackTrace(this.listener.error(e.getMessage()));
             return 1;
         }
@@ -147,7 +157,6 @@ public class Linux {
             }
             setEnvVar("PATH", this.pathVar + ":/" + dir);
             return 0;
-//            executeCommand("./smctl sign -k " + key + " -f " + fingerprint + " --config-file "+dir+"/pkcs11properties.cfg -v -i " + file);
         } catch (Exception e) {
             e.printStackTrace(this.listener.error(e.getMessage()));
             return 1;
@@ -172,7 +181,7 @@ public class Linux {
             processBuilder.redirectErrorStream(true);
             Process process = processBuilder.start();
 
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(),StandardCharsets.UTF_8));
 
             String line;
 
@@ -180,13 +189,8 @@ public class Linux {
                 this.listener.getLogger().println(line);
             }
             int exitCode = process.waitFor();
+            reader.close();
             return exitCode;
-//            try {
-//                if (exitCode != 0) throw new Exception("Command failed");
-//            }
-//            catch (Exception e) {
-//                e.printStackTrace(this.listener.error(e.getMessage()));
-//            }
         } catch (IOException e) {
             e.printStackTrace(this.listener.error(e.getMessage()));
             return 1;
@@ -229,279 +233,3 @@ public class Linux {
         return result;
     }
 }
-/*
-Boolean kp = keypairExists();
-
-        if(kp && !fingerprint.equals("")) {
-            ;
-        }
-        else if (kp && this.fingerprint.equals("")) {
-            JSONArray items = getRequest("https://stage.one.digicert.com/signingmanager/api/v1/certificates?alias="+alias);
-            JSONArray cert = search(items,alias);
-            JSONObject obj = cert.getJSONObject(0);
-            importCert(obj);
-        }
-        else {
-            //check if certname exists then generate kp and cert
-            JSONArray items = getRequest("https://stage.one.digicert.com/signingmanager/api/v1/certificates?alias="+alias);
-            JSONArray cert = search(items,alias);
-            if (cert.length() != 0) {
-                this.alias = key+"_cert";   //since cert alias already exists
-                this.listener.getLogger().println("Provided certificate alias is a duplicate value. Using new unique alias "+alias+"\n");
-            }
-            ID = generateKP();
-            checkUserAccess(ID);
-            //Find fingerprint, import cert chain of newly created cert
-            items = getRequest("https://stage.one.digicert.com/signingmanager/api/v1/certificates?alias="+alias);
-            cert = search(items,alias);
-            JSONObject obj = cert.getJSONObject(0);
-            importCert(obj);
-        }
- */
-/*
-public List<Path> findByFileName(Path path, String fileName) throws IOException {
-
-        List<Path> result;
-        try (Stream<Path> pathStream = Files.find(path,
-                Integer.MAX_VALUE,
-                (p, basicFileAttributes) ->
-                        p.getFileName().toString().equalsIgnoreCase(fileName))
-        ) {
-            result = pathStream.collect(Collectors.toList());
-        }
-        return result;
-    }
-
-    public JSONArray search(JSONArray array, String searchValue){
-
-        JSONArray filtedArray = new JSONArray();
-        for (int i = 0; i < array.length(); i++) {
-            JSONObject obj= null;
-            try {
-                obj = array.getJSONObject(i);
-                if(obj.getString("alias").equals(searchValue))
-                {
-                    filtedArray.put(obj);
-                }
-            } catch (JSONException e) {
-                e.printStackTrace(this.listener.error(e.getMessage()));
-            }
-        }
-        return filtedArray;
-    }
-
-    public String findCert(JSONArray array, String searchValue){
-
-        for (int i = 0; i < array.length(); i++) {
-            try {
-                if(array.getJSONObject(i).getString("cert_type").equals(searchValue))
-                {
-                    return array.getJSONObject(i).getString("blob");
-                }
-            } catch (JSONException e) {
-                e.printStackTrace(this.listener.error(e.getMessage()));
-            }
-        }
-        return "";
-    }
-
-    public String findFingerprint(String certString)  {
-
-        try {
-            var cert = certString;
-            CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-            InputStream in = new ByteArrayInputStream(Base64.getDecoder().decode(cert));
-            var x509Certificate = (X509Certificate) certFactory.generateCertificate(in);
-            MessageDigest md = MessageDigest.getInstance("SHA-1");
-            md.update(x509Certificate.getEncoded());
-            var hex = DatatypeConverter.printHexBinary(md.digest()).toLowerCase();
-            return hex;
-        }
-        catch (NoSuchAlgorithmException e) {
-            e.printStackTrace(this.listener.error(e.getMessage()));
-        }
-        catch(CertificateException e){
-            e.printStackTrace(this.listener.error(e.getMessage()));
-        }
-        return "";
-    }
-
-    public void createCert(String path, String str) {
-
-        File file = new File(path); //initialize File object and passing path as argument
-        boolean result;
-        try {
-            result = file.createNewFile();  //creates a new file
-            if (result)      // test if successfully created a new file
-            {
-                try {
-                    String name = file.getCanonicalPath();
-                    FileOutputStream fos = new FileOutputStream(name, false);  // true for append mode
-                    byte[] b = str.getBytes();       //converts string into bytes
-                    fos.write("-----BEGIN CERTIFICATE-----\n".getBytes("US-ASCII"));
-                    fos.write(b);           //writes bytes into file
-                    fos.write("\n-----END CERTIFICATE-----\n".getBytes("US-ASCII"));
-                    fos.close();      //close the file
-                } catch (Exception e) {
-                    e.printStackTrace(this.listener.error(e.getMessage()));
-                }
-            }
-        } catch (IOException e) {
-            e.printStackTrace(this.listener.error(e.getMessage()));
-        }
-    }
-
-    public void importCert(JSONObject obj) {
-
-        this.listener.getLogger().println("\nImporting certificates into truststore\n");
-        String root = findCert(obj.getJSONArray("chain"),"root");
-        String ica = findCert(obj.getJSONArray("chain"),"intermediate");
-        String ee = obj.getString("cert");
-        createCert(dir+File.separator+"root.crt",root);
-        createCert(dir+File.separator+"ica.crt",ica);
-        createCert(dir+File.separator+obj.getString("alias")+".crt",ee);
-        executeCommand("sudo cp root.crt /usr/local/share/ca-certificates/root.crt && sudo update-ca-certificates > /dev/null");
-        executeCommand("sudo cp ica.crt /usr/local/share/ca-certificates/ica.crt && sudo update-ca-certificates > /dev/null");
-        executeCommand("sudo cp "+obj.getString("alias")+".crt /usr/local/share/ca-certificates/"+obj.getString("alias")+".crt && sudo update-ca-certificates > /dev/null");
-        this.fingerprint = findFingerprint(ee);
-        this.listener.getLogger().println("\nCertificates imported\n");
-    }
-
-    public Boolean keypairExists() throws IOException, HttpException{
-
-        JSONArray items = getRequest("https://stage.one.digicert.com/signingmanager/api/v1/keypairs?alias="+key);
-        JSONArray item = search(items,key);
-        if(item.length()==0){
-            return false; //keypair does not exist
-        }
-        else {
-            this.listener.getLogger().println("Keypair with the given alias already exists\n");
-            items = getRequest("https://stage.one.digicert.com/signingmanager/api/v1/certificates?alias="+alias);
-            ID = item.getJSONObject(0).getString("id");
-            JSONArray cert = search(items,alias);
-            checkUserAccess(ID);
-            if(cert.length()==0) {
-                // Cert does not exist. Generate cert using cert-alias
-                this.listener.getLogger().println("Certificate with the given alias does NOT exist\n" +
-                        "Generating certificate with alias "+alias+" for existing keypair...\n");
-                executeCommand("./smctl keypair generate-cert "+ID+" --cert-alias="+alias+" --cert-profile-id="+certProfile+" --set-as-default-cert=true");
-                return true;
-            }
-            //certificate exists
-            JSONObject obj = cert.getJSONObject(0);
-            if ( !(obj.getJSONObject("keypair").getString("id")).equals(ID) ) {
-                alias = key + "_cert";
-                this.listener.getLogger().println("Certificate with the given alias exists but not for the given keypair.\n" +
-                        "Checking if certificate with a different alias "+alias+" exists\n");
-                items = getRequest("https://stage.one.digicert.com/signingmanager/api/v1/certificates?alias="+alias);
-                cert = search(items,alias);
-                if(cert.length()==0){
-                    this.listener.getLogger().println("Certificate does not exist.\nNew certificate is generated with alias "+alias+"\n");
-                    executeCommand("./smctl keypair generate-cert "+ID+" --cert-alias="+alias+" --cert-profile-id="+certProfile+" --set-as-default-cert=true");
-                }
-                else {
-                    this.listener.getLogger().println("Certificate already exists.\nUsing certificate "+alias+" to sign\n");
-                }
-                return true;
-            }
-            this.listener.getLogger().println("Certificate with the given alias already exists\n");
-            importCert(obj);
-            return true;
-        }
-    }
-
-    public JSONArray getRequest(String req) throws IOException, HttpException{
-        int requestExitCode;
-        CloseableHttpClient httpclient = HttpClients.createDefault();
-        CloseableHttpResponse response;
-
-        HttpGet getRequest = new HttpGet(req);
-        getRequest.setHeader("x-api-key", apikey);
-        response = httpclient.execute(getRequest);
-        HttpEntity entity = response.getEntity();
-        String result = EntityUtils.toString(entity, StandardCharsets.UTF_8);
-
-        JSONObject json = new JSONObject(result);
-
-        requestExitCode = response.getStatusLine().getStatusCode();
-
-        if (requestExitCode != 200) {
-            listener.getLogger().println("\nRequest Failed with Exit Code: " + requestExitCode);
-            listener.getLogger().println("FAILURE REASON: " + response.getStatusLine().getReasonPhrase());
-            throw new HttpException("Unexpected response to CONNECT request\n" + result);
-        }
-        return json.getJSONArray("items");
-    }
-
-    public Boolean findUser(JSONArray array, String searchValue) {
-
-        for (int i = 0; i < array.length(); i++) {
-            JSONObject obj= null;
-            try {
-                obj = array.getJSONObject(i);
-                if(obj.getString("id").equals(searchValue))
-                {
-                    return true;
-                }
-            } catch (JSONException e) {
-                e.printStackTrace(this.listener.error(e.getMessage()));
-            }
-        }
-        return false;
-    }
-
-    public void checkUserAccess(String id) {
-        try {
-            JSONArray items = getRequest("https://stage.one.digicert.com/signingmanager/api/v1/keypairs?id=" + id);
-            JSONObject obj = items.getJSONObject(0);
-            if (obj.getBoolean("limit_by_users")) {
-                JSONArray users = obj.getJSONArray("users");
-                String user = obj.getString("created_by");
-                if (users.length() == 0 || !findUser(users, obj.getString("created_by"))) {
-                    executeCommand("./smctl keypair update-access "+ id +" --users "+user +" --operation add");
-                }
-            }
-        }
-        catch (IOException e){
-            e.printStackTrace(this.listener.error(e.getMessage()));
-        }
-    }
-
-    public String generateKP(){
-        try{
-            String keyType;
-            if(prod)
-                keyType = "PRODUCTION";
-            else
-                keyType = "TEST";
-
-            this.listener.getLogger().println("Creating "+keyType+" keypair with alias "+key+" and certificate alias "+alias+"\n");
-
-            processBuilder.command(prompt,c+"c","./smctl keypair generate rsa "+ key +" --cert-alias="+alias+
-                    " --cert-profile-id="+certProfile+ " --generate-cert=true --key-type="+keyType);
-            Map<String, String> env = processBuilder.environment();
-            env.put("SM_API_KEY", apikey);
-            env.put("SM_CLIENT_CERT_PASSWORD", password );
-            env.put("SM_CLIENT_CERT_FILE", cert);
-            env.put("SM_HOST", host);
-            env.put("PATH",System.getenv("PATH")+":/"+dir+"/smtools-linux-x64/");
-            processBuilder.directory(new File(dir));
-            processBuilder.redirectErrorStream(true);
-            Process process = processBuilder.start();
-
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-
-            String line;
-            while ((line = reader.readLine()) != null) {
-                this.listener.getLogger().println(line);
-                return line;
-            }
-            int exitCode = process.waitFor();
-        } catch (IOException e) {
-            e.printStackTrace(this.listener.error(e.getMessage()));
-        } catch (InterruptedException e) {
-            e.printStackTrace(this.listener.error(e.getMessage()));
-        }
-        return "";
-    }
- */
