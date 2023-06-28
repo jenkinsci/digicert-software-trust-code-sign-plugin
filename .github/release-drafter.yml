@@ -1,2 +1,0 @@
-_extends: .github
-tag-template: code-signing-with-software-trust-manager-plugin-$NEXT_MINOR_VERSION
