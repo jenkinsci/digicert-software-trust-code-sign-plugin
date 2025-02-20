@@ -56,11 +56,15 @@ public class Linux {
 
     public Integer install(String os) {
         this.listener.getLogger().println("\nAgent type: " + os);
+        var downloadUrl = String.format(
+                "https://%s/signingmanager/api-ui/v1/releases/noauth/smtools-linux-x64.tar.gz/download",
+                SM_HOST.trim().substring(19).replaceAll("/$", ""));
         this.listener.getLogger()
-                .println("\nIstalling SMCTL from: https://" + SM_HOST.substring(19).replaceAll("/$", "")
-                        + "/signingmanager/api-ui/v1/releases/noauth/smtools-linux-x64.tar.gz/download \n");
-        executeCommand("curl -X GET https://" + SM_HOST.substring(19).replaceAll("/$", "")
-                + "/signingmanager/api-ui/v1/releases/noauth/smtools-linux-x64.tar.gz/download/ -o smtools-linux-x64.tar.gz");
+                .println("\nInstalling SMCTL from: " + downloadUrl);
+        result = executeCommand("curl -X GET " + downloadUrl + " -o smtools-linux-x64.tar.gz");
+        if (result != 0) {
+            return result;
+        }
         result = executeCommand("tar xvf smtools-linux-x64.tar.gz > /dev/null");
         dir = dir + File.separator + "smtools-linux-x64";
         return result;
@@ -94,26 +98,35 @@ public class Linux {
 
     public void setEnvVar(String key, String value) {
         try {
-            Jenkins instance = Jenkins.get();
-
-            DescribableList<NodeProperty<?>, NodePropertyDescriptor> globalNodeProperties = instance
-                    .getGlobalNodeProperties();
-            List<EnvironmentVariablesNodeProperty> envVarsNodePropertyList = globalNodeProperties
-                    .getAll(EnvironmentVariablesNodeProperty.class);
-
-            EnvironmentVariablesNodeProperty newEnvVarsNodeProperty = null;
-            EnvVars envVars = null;
-
-            if (envVarsNodePropertyList == null || envVarsNodePropertyList.size() == 0) {
-                newEnvVarsNodeProperty = new hudson.slaves.EnvironmentVariablesNodeProperty();
-                globalNodeProperties.add(newEnvVarsNodeProperty);
-                envVars = newEnvVarsNodeProperty.getEnvVars();
-            } else {
-                // We do have a envVars List
-                envVars = envVarsNodePropertyList.get(0).getEnvVars();
+            Jenkins instance = null;
+            try {
+                instance = Jenkins.get();
+            } catch (IllegalStateException e) {
+                this.listener.getLogger().println("Could not set environment variable: " + key + " with value: " + value
+                        + ". This is due to the plugin running on a slave node. This will have to be manually defined in the pipeline as an environment variable.");
+                return;
             }
-            envVars.put(key, value);
-            instance.save();
+
+            if (instance != null) {
+                DescribableList<NodeProperty<?>, NodePropertyDescriptor> globalNodeProperties = instance
+                        .getGlobalNodeProperties();
+                List<EnvironmentVariablesNodeProperty> envVarsNodePropertyList = globalNodeProperties
+                        .getAll(EnvironmentVariablesNodeProperty.class);
+
+                EnvironmentVariablesNodeProperty newEnvVarsNodeProperty = null;
+                EnvVars envVars = null;
+
+                if (envVarsNodePropertyList == null || envVarsNodePropertyList.size() == 0) {
+                    newEnvVarsNodeProperty = new hudson.slaves.EnvironmentVariablesNodeProperty();
+                    globalNodeProperties.add(newEnvVarsNodeProperty);
+                    envVars = newEnvVarsNodeProperty.getEnvVars();
+                } else {
+                    // We do have a envVars List
+                    envVars = envVarsNodePropertyList.get(0).getEnvVars();
+                }
+                envVars.put(key, value);
+                instance.save();
+            }
         } catch (IOException e) {
             e.printStackTrace(this.listener.error(e.getMessage()));
         }
@@ -215,9 +228,9 @@ public class Linux {
 
         result = install(os);
         if (result == 0)
-            this.listener.getLogger().println("\nSMCTL Istallation Complete\n");
+            this.listener.getLogger().println("\nSMCTL Installation Complete\n");
         else {
-            this.listener.getLogger().println("\nSMCTL Istallation Failed\n");
+            this.listener.getLogger().println("\nSMCTL Installation Failed\n");
             return result;
         }
 

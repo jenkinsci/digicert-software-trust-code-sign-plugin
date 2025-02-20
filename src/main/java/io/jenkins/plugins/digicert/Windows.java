@@ -64,11 +64,15 @@ public class Windows {
 
     public Integer install(String os) {
         this.listener.getLogger().println("\nAgent type: " + os);
+        var downloadUrl = String
+                .format("https://%s/signingmanager/api-ui/v1/releases/noauth/smtools-windows-x64.msi/download",
+                        SM_HOST.trim().substring(19).replaceAll("/$", ""));
         this.listener.getLogger()
-                .println("\nInstalling SMCTL from: https://" + SM_HOST.substring(19).replaceAll("/$", "")
-                        + "/signingmanager/api-ui/v1/releases/noauth/smtools-windows-x64.msi/download \n");
-        executeCommand("curl -X GET  https://" + SM_HOST.substring(19).replaceAll("/$", "")
-                + "/signingmanager/api-ui/v1/releases/noauth/smtools-windows-x64.msi/download -o smtools-windows-x64.msi");
+                .println("\nInstalling SMCTL from: " + downloadUrl);
+        result = executeCommand("curl -X GET  " + downloadUrl + " -o smtools-windows-x64.msi");
+        if (result != 0) {
+            return result;
+        }
         result = executeCommand("msiexec /i smtools-windows-x64.msi /quiet /qn");
         if (SM_API_KEY != null && SM_CLIENT_CERT_FILE != null && SM_CLIENT_CERT_PASSWORD != null) {
             executeCommand(
@@ -147,25 +151,35 @@ public class Windows {
 
     public void setEnvVar(String key, String value) {
         try {
-            Jenkins instance = Jenkins.get();
-
-            DescribableList<NodeProperty<?>, NodePropertyDescriptor> globalNodeProperties = instance
-                    .getGlobalNodeProperties();
-            List<EnvironmentVariablesNodeProperty> envVarsNodePropertyList = globalNodeProperties
-                    .getAll(EnvironmentVariablesNodeProperty.class);
-
-            EnvironmentVariablesNodeProperty newEnvVarsNodeProperty = null;
-            EnvVars envVars = null;
-
-            if (envVarsNodePropertyList == null || envVarsNodePropertyList.size() == 0) {
-                newEnvVarsNodeProperty = new hudson.slaves.EnvironmentVariablesNodeProperty();
-                globalNodeProperties.add(newEnvVarsNodeProperty);
-                envVars = newEnvVarsNodeProperty.getEnvVars();
-            } else {
-                envVars = envVarsNodePropertyList.get(0).getEnvVars();
+            Jenkins instance = null;
+            try {
+                instance = Jenkins.get();
+            } catch (IllegalStateException e) {
+                this.listener.getLogger().println("Could not set environment variable: " + key + " with value: " + value
+                        + ". This is due to the plugin running on a slave node. This will have to be manually defined in the pipeline as an environment variable.");
+                return;
             }
-            envVars.put(key, value);
-            instance.save();
+
+            if (instance != null) {
+                DescribableList<NodeProperty<?>, NodePropertyDescriptor> globalNodeProperties = instance
+                        .getGlobalNodeProperties();
+                List<EnvironmentVariablesNodeProperty> envVarsNodePropertyList = globalNodeProperties
+                        .getAll(EnvironmentVariablesNodeProperty.class);
+
+                EnvironmentVariablesNodeProperty newEnvVarsNodeProperty = null;
+                EnvVars envVars = null;
+
+                if (envVarsNodePropertyList == null || envVarsNodePropertyList.size() == 0) {
+                    newEnvVarsNodeProperty = new hudson.slaves.EnvironmentVariablesNodeProperty();
+                    globalNodeProperties.add(newEnvVarsNodeProperty);
+                    envVars = newEnvVarsNodeProperty.getEnvVars();
+                } else {
+                    envVars = envVarsNodePropertyList.get(0).getEnvVars();
+                }
+                envVars.put(key, value);
+                instance.save();
+            }
+
         } catch (IOException e) {
             e.printStackTrace(this.listener.error(e.getMessage()));
         }
@@ -287,9 +301,9 @@ public class Windows {
         result = install(os);
 
         if (result == 0)
-            this.listener.getLogger().println("\nSMCTL Istallation Complete\n");
+            this.listener.getLogger().println("\nSMCTL Installation Complete\n");
         else {
-            this.listener.getLogger().println("\nSMCTL Istallation Failed\n");
+            this.listener.getLogger().println("\nSMCTL Installation Failed\n");
             return result;
         }
 
