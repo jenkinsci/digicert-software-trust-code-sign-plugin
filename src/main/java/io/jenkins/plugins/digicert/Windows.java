@@ -64,7 +64,7 @@ public class Windows {
 
     public Integer install(String os) {
         this.listener.getLogger().println("\nAgent type: " + os);
-        var downloadUrl = String
+        String downloadUrl = String
                 .format("https://%s/signingmanager/api-ui/v1/releases/noauth/smtools-windows-x64.msi/download",
                         SM_HOST.trim().substring(19).replaceAll("/$", ""));
         this.listener.getLogger()

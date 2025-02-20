@@ -56,7 +56,7 @@ public class Linux {
 
     public Integer install(String os) {
         this.listener.getLogger().println("\nAgent type: " + os);
-        var downloadUrl = String.format(
+        String downloadUrl = String.format(
                 "https://%s/signingmanager/api-ui/v1/releases/noauth/smtools-linux-x64.tar.gz/download",
                 SM_HOST.trim().substring(19).replaceAll("/$", ""));
         this.listener.getLogger()
